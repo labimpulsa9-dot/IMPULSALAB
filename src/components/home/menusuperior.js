@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { createClient } from "@lib/client";
 import { esDirectorOAdministrador } from "@/lib/roles";
+import { urlHttpsSegura } from "@/lib/seguridad/url";
 
 /**
  * Menú superior del home (Ferias, Mi proceso, Tienda digital).
@@ -70,22 +71,12 @@ function ModalPortal({ children }) {
 }
 
 function linkSeguro(valor) {
-  return /^https?:\/\//i.test(valor || "");
+  return Boolean(urlHttpsSegura(valor));
 }
 
+// Solo https; rechaza javascript:, data:, credenciales en la URL, etc.
 function normalizarLink(valor) {
-  const limpio = (valor || "").trim();
-  if (!limpio) return "";
-
-  const conProtocolo = /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
-
-  try {
-    const url = new URL(conProtocolo);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    return url.toString();
-  } catch {
-    return "";
-  }
+  return urlHttpsSegura(valor) ?? "";
 }
 
 /* =========================================================
@@ -493,9 +484,9 @@ function PanelFerias({
             >
               {linkSeguro(feria.link_registro) ? (
                 <a
-                  href={feria.link_registro}
+                  href={urlHttpsSegura(feria.link_registro)}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="min-w-0 flex-1 px-4 py-2.5"
                 >
                   <p className="text-sm font-semibold text-[#020201] leading-snug truncate">

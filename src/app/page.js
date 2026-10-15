@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/../libreria/supabase/client";
+import { conRolVerificado } from "@/lib/seguridad/usuario";
 import TarjetasCarousel from "@/components/home/TarjetasCarousel";
 import VideoEmprendedores from "@/components/home/VideoEmprendedores";
 import PanelAcademico from "@/components/home/PanelAcademico";
@@ -65,11 +66,24 @@ function IntroVideo({ onPlay, onEnded, onError }) {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-dvh bg-black z-50 flex items-center justify-center">
+    // Fondo blanco = mismo blanco del video, así no se ven bordes ni barras negras
+    <div className="fixed inset-0 w-full h-dvh bg-white z-50 flex items-center justify-center overflow-hidden">
       <video
         ref={videoRef}
         src="/videos/ave.mp4"
-        className="w-full h-full object-cover"
+        className="block bg-white object-contain"
+        // El video es vertical (9:16). Se muestra completo, sin recortar ni ampliar de más.
+        // Alto máximo 640px (evita verse borroso) y 80% del alto en celulares.
+        // Los bordes laterales se desvanecen para que el ave no se "corte" al entrar y salir.
+        style={{
+          height: "min(80dvh, 640px)",
+          aspectRatio: "9 / 16",
+          maxWidth: "100%",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+          maskImage:
+            "linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%)",
+        }}
         playsInline
         preload="auto"
         onPlay={onPlay}
@@ -80,7 +94,7 @@ function IntroVideo({ onPlay, onEnded, onError }) {
         <button
           type="button"
           onClick={activarSonido}
-          className="absolute bottom-6 right-6 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-[#020201] shadow-lg transition hover:bg-white"
+          className="absolute bottom-6 right-6 rounded-full bg-[#020201] px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-[#020201]/85"
         >
           🔊 Activar sonido
         </button>
@@ -198,13 +212,14 @@ export default function Home() {
   useEffect(() => {
     const supabase = createClient();
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUsuario(data?.user ?? null);
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUsuario(await conRolVerificado(supabase, data?.user ?? null));
       setCargandoSesion(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_evento, session) => {
-      setUsuario(session?.user ?? null);
+      // setTimeout: evita llamar a Supabase dentro del callback de auth (riesgo de bloqueo).
+      setTimeout(async () => setUsuario(await conRolVerificado(supabase, session?.user ?? null)), 0);
     });
 
     return () => {

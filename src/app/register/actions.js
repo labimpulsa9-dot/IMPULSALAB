@@ -37,10 +37,22 @@ export async function registrarUsuario(prevState, formData) {
     return { error: "La contraseña es obligatoria." };
   }
 
-  if (password.length < 8) {
+  if (password.length < 12) {
     return {
-      error: "La contraseña debe tener al menos 8 caracteres.",
+      error: "La contraseña debe tener al menos 12 caracteres.",
     };
+  }
+
+  if (password.length > 128) {
+    return { error: "La contraseña es demasiado larga." };
+  }
+
+  if (nombre.length > 120 || nombreEmprendimiento.length > 200) {
+    return { error: "Alguno de los textos es demasiado largo." };
+  }
+
+  if (!/^[0-9+()\-\s]{7,20}$/.test(telefono)) {
+    return { error: "Escribe un número de teléfono válido." };
   }
 
   if (password !== confirmarPassword) {
@@ -63,7 +75,7 @@ export async function registrarUsuario(prevState, formData) {
       data: {
         nombre,
         telefono,
-        rol: "ESTUDIANTE",
+        // El rol NO se envía desde aquí: lo fija la base de datos (trigger handle_new_user).
         tieneIdeaNegocio: tieneIdea,
         nombreEmprendimiento: tieneIdea ? nombreEmprendimiento : null,
       },
@@ -80,9 +92,10 @@ export async function registrarUsuario(prevState, formData) {
       };
     }
 
+    // El detalle técnico queda en el log del servidor; al usuario no se le muestra.
     console.error("Error de registro en Supabase:", error);
     return {
-      error: `No se pudo completar el registro: ${error.message}`,
+      error: "No se pudo completar el registro. Inténtalo de nuevo en unos minutos.",
     };
   }
 

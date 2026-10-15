@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@lib/client";
 import { esDirectorOAdministrador } from "@/lib/roles";
+import { esVideoDirectoSeguro, urlEmbedPermitida, urlHttpsSegura } from "@/lib/seguridad/url";
 import CarruselDeslizable from "@/components/ui/CarruselDeslizable";
 
 const SECCION_VIDEO = "nuestros_emprendedores";
@@ -32,30 +33,14 @@ export function esShortDeYoutube(url) {
   return /youtube\.com\/shorts\//i.test(url || "");
 }
 
+// Solo se incrustan YouTube y Vimeo. Cualquier otro dominio se rechaza: un iframe con una página
+// arbitraria permitiría phishing dentro del sitio.
 function obtenerUrlEmbed(url) {
-  if (!url) return null;
-
-  const idYoutube = obtenerIdYoutube(url);
-  if (idYoutube) {
-    return `https://www.youtube.com/embed/${idYoutube}`;
-  }
-
-  try {
-    const u = new URL(url);
-
-    if (u.hostname.includes("vimeo.com") && !u.pathname.startsWith("/video/")) {
-      const id = u.pathname.split("/").filter(Boolean)[0];
-      if (id) return `https://player.vimeo.com/video/${id}`;
-    }
-
-    return url;
-  } catch {
-    return url;
-  }
+  return urlEmbedPermitida(url);
 }
 
 function esVideoDirecto(url) {
-  return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url || "");
+  return esVideoDirectoSeguro(url);
 }
 
 export default function VideoEmprendedores({ usuario }) {
@@ -118,8 +103,14 @@ export default function VideoEmprendedores({ usuario }) {
       return;
     }
 
-    const ancho = Number(anchoInput) || 640;
-    const alto = Number(altoInput) || 360;
+    const urlSegura = urlHttpsSegura(urlInput);
+    if (!urlSegura || !(urlEmbedPermitida(urlSegura) || esVideoDirectoSeguro(urlSegura))) {
+      setError("Solo se aceptan enlaces https de YouTube, Vimeo o un archivo de video .mp4/.webm.");
+      return;
+    }
+
+    const ancho = Math.min(1920, Math.max(120, Number(anchoInput) || 640));
+    const alto = Math.min(1080, Math.max(120, Number(altoInput) || 360));
 
     setGuardando(true);
     const supabase = createClient();
@@ -129,7 +120,7 @@ export default function VideoEmprendedores({ usuario }) {
     const { error: errorGuardado } = await supabase.from("videos_home").insert({
       seccion: SECCION_VIDEO,
       titulo: tituloInput.trim() || null,
-      url: urlInput.trim(),
+      url: urlSegura,
       ancho,
       alto,
       actualizado_por: usuario?.id ?? null,
@@ -140,9 +131,7 @@ export default function VideoEmprendedores({ usuario }) {
 
     if (errorGuardado) {
       console.error("Error al guardar video:", errorGuardado);
-      setError(
-        `No se pudo guardar el video: ${errorGuardado.message ?? "error desconocido"}`
-      );
+      setError("No se pudo guardar el video. Verifica el enlace y tus permisos.");
       return;
     }
 
@@ -156,7 +145,12 @@ export default function VideoEmprendedores({ usuario }) {
     if (!window.confirm("¿Eliminar este video de la sección?")) return;
 
     const supabase = createClient();
-    await supabase.from("videos_home").delete().eq("id", video.id);
+    const { error: errorBorrado } = await supabase.from("videos_home").delete().eq("id", video.id);
+    if (errorBorrado) {
+      console.error("Error al eliminar video:", errorBorrado);
+      window.alert("No se pudo eliminar el video. Verifica tus permisos.");
+      return;
+    }
     setIndice(0);
     await cargarVideos();
   };
@@ -211,13 +205,21 @@ export default function VideoEmprendedores({ usuario }) {
           />
         ) : (
           <div style={estiloCaja} className="rounded-xl shadow-md bg-black overflow-hidden">
-            <iframe
-              src={obtenerUrlEmbed(video.url)}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title="Video de IMPULSA LAB"
-            />
+            {obtenerUrlEmbed(video.url) ? (
+              <iframe
+                src={obtenerUrlEmbed(video.url)}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                title="Video de IMPULSA LAB"
+              />
+            ) : (
+              <p className="flex h-full items-center justify-center px-4 text-center text-xs text-white/70">
+                Este video no se puede mostrar.
+              </p>
+            )}
           </div>
         )}
 

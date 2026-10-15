@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@lib/server";
 import { esRolAvanzado, obtenerPerfilActual } from "@/lib/proceso/perfil";
+import { esUuid } from "@/lib/seguridad/usuario";
 import { ROLES_GESTION_DOCENTES, priorizarMentorias } from "@/lib/proceso/mentorias";
 import {
   crearPlanSiNoExiste,
@@ -43,7 +44,9 @@ export default async function MiProcesoPage({ searchParams }) {
   const { estudiante } = await searchParams;
   const estudianteId = esGestion ? (Array.isArray(estudiante) ? estudiante[0] : estudiante) : user.id;
 
-  if (!estudianteId) redirect("/panel-de-control");
+  // El id viene de la URL: se valida el formato. Que el usuario PUEDA ver a ese estudiante
+  // lo decide la base de datos (RLS): si no puede, las consultas devuelven vacío.
+  if (!estudianteId || !esUuid(estudianteId)) redirect(esGestion ? "/panel-de-control" : "/");
 
   const diagnostico = await conRespaldo("cargando el diagnóstico", () => getDiagnostico(supabase, estudianteId), null);
 

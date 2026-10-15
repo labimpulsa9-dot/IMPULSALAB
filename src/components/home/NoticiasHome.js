@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@lib/client";
 import { esDirectorOAdministrador } from "@/lib/roles";
+import { nombreAleatorio, validarImagen } from "@/lib/seguridad/archivos";
 import Reveal from "@/components/ui/Reveal";
 import CarruselDeslizable from "@/components/ui/CarruselDeslizable";
 
@@ -333,7 +334,10 @@ function FormularioNoticia({
          ===================================================== */
 
       if (imagenArchivo) {
-        const nombreArchivo = `${Date.now()}-${imagenArchivo.name}`;
+        const validacion = await validarImagen(imagenArchivo);
+        if (validacion.error) throw new Error(validacion.error);
+
+        const nombreArchivo = nombreAleatorio(validacion.extension);
 
         const { error: errorSubida } =
           await supabase.storage

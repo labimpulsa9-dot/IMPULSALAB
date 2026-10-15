@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@lib/client";
 import { esDirectorOAdministrador } from "@/lib/roles";
+import { conRolVerificado } from "@/lib/seguridad/usuario";
+import { urlHttpsSegura } from "@/lib/seguridad/url";
 import Reveal from "@/components/ui/Reveal";
 import CarruselDeslizable from "@/components/ui/CarruselDeslizable";
 import EventoForm from "./EventoForm";
@@ -30,7 +32,10 @@ export default function EventosPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUsuario(data?.user ?? null));
+    supabase.auth
+      .getUser()
+      .then(({ data }) => conRolVerificado(supabase, data?.user ?? null))
+      .then(setUsuario);
     cargarEventos();
   }, [cargarEventos]);
 
@@ -203,21 +208,21 @@ function TarjetaEvento({ evento, esActual = true, puedeAdministrar, onEditar, on
         </p>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          {evento.link_oficial && (
+          {urlHttpsSegura(evento.link_oficial) && (
             <a
-              href={evento.link_oficial}
+              href={urlHttpsSegura(evento.link_oficial)}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="il-hover-lift inline-flex items-center gap-1.5 rounded-xl border-2 border-[#003893] px-4 py-2 text-sm font-semibold text-[#003893] transition hover:bg-[#003893] hover:text-white"
             >
               Sitio oficial
             </a>
           )}
-          {evento.link_registro && (
+          {urlHttpsSegura(evento.link_registro) && (
             <a
-              href={evento.link_registro}
+              href={urlHttpsSegura(evento.link_registro)}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="il-hover-lift inline-flex items-center gap-1.5 rounded-xl bg-[#CE1126] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#CE1126]/90"
             >
               Regístrate

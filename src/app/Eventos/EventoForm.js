@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { createClient } from "@lib/client";
+import { urlHttpsSegura } from "@/lib/seguridad/url";
+import { nombreAleatorio, validarImagen } from "@/lib/seguridad/archivos";
 
 export default function EventoForm({ usuario, eventoExistente, onCerrar, onGuardado }) {
   const esEdicion = Boolean(eventoExistente);
@@ -29,13 +31,29 @@ export default function EventoForm({ usuario, eventoExistente, onCerrar, onGuard
       return;
     }
 
+    if (titulo.trim().length > 200 || descripcion.trim().length > 10000) {
+      setError("El título o la descripción son demasiado largos.");
+      return;
+    }
+
+    // Enlaces opcionales: si se escriben, deben ser https válidos.
+    const oficialSeguro = linkOficial.trim() ? urlHttpsSegura(linkOficial) : null;
+    const registroSeguro = linkRegistro.trim() ? urlHttpsSegura(linkRegistro) : null;
+    if ((linkOficial.trim() && !oficialSeguro) || (linkRegistro.trim() && !registroSeguro)) {
+      setError("Los enlaces deben ser direcciones https válidas.");
+      return;
+    }
+
     setEnviando(true);
     const supabase = createClient();
     let imagenUrl = eventoExistente?.imagen_url ?? null;
 
     try {
       if (imagenArchivo) {
-        const nombreArchivo = `${Date.now()}-${imagenArchivo.name}`;
+        const validacion = await validarImagen(imagenArchivo);
+        if (validacion.error) throw new Error(validacion.error);
+
+        const nombreArchivo = nombreAleatorio(validacion.extension);
         const { error: errorSubida } = await supabase.storage
           .from("eventos")
           .upload(nombreArchivo, imagenArchivo, { upsert: false });
@@ -53,8 +71,8 @@ export default function EventoForm({ usuario, eventoExistente, onCerrar, onGuard
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         imagen_url: imagenUrl,
-        link_oficial: linkOficial.trim() || null,
-        link_registro: linkRegistro.trim() || null,
+        link_oficial: oficialSeguro,
+        link_registro: registroSeguro,
       };
 
       if (esEdicion) {
@@ -75,7 +93,8 @@ export default function EventoForm({ usuario, eventoExistente, onCerrar, onGuard
       onGuardado?.();
       onCerrar?.();
     } catch (err) {
-      setError(err?.message ?? "No se pudo guardar el evento. Inténtalo de nuevo.");
+      console.error("Error guardando el evento:", err);
+      setError("No se pudo guardar el evento. Verifica la imagen y tus permisos e inténtalo de nuevo.");
     } finally {
       setEnviando(false);
     }

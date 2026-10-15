@@ -10,6 +10,9 @@ const ROLES = {
   ADMINISTRADOR: "ADMINISTRADOR",
 };
 
+// Solo las columnas necesarias (minimización de datos: no se trae teléfono ni otros campos)
+const COLUMNAS_PERFIL = "id, nombre, apellido, email, rol";
+
 // Nombre completo (nombre + apellido) o, si no hay, el correo
 function nombreDe(perfil) {
   const completo = [perfil?.nombre, perfil?.apellido].filter(Boolean).join(" ").trim();
@@ -27,11 +30,12 @@ async function leer(consulta) {
 async function perfilesPorIds(supabase, ids) {
   const unicos = [...new Set(ids.filter(Boolean))];
   if (unicos.length === 0) return [];
-  return leer(supabase.from("perfiles").select("*").in("id", unicos));
+  return leer(supabase.from("perfiles").select(COLUMNAS_PERFIL).in("id", unicos));
 }
 
 export default function PanelAcademico({ usuario }) {
-  const rol = usuario?.user_metadata?.rol ?? null;
+  // Rol verificado en la base de datos (no user_metadata, que el usuario puede editar).
+  const rol = usuario?.rolVerificado ?? null;
   const usuarioId = usuario?.id ?? null;
 
   const [cargando, setCargando] = useState(true);
@@ -67,7 +71,7 @@ export default function PanelAcademico({ usuario }) {
         if (rol === ROLES.ESTUDIANTE) {
           // El estudiante solo necesita sus asignaciones y sus profesores
           listaAsignaciones = await leer(
-            supabase.from("asignaciones").select("*").eq("estudiante_id", usuarioId)
+            supabase.from("asignaciones").select("id, estudiante_id, profesor_id").eq("estudiante_id", usuarioId)
           );
           perfiles = await perfilesPorIds(
             supabase,
@@ -76,15 +80,15 @@ export default function PanelAcademico({ usuario }) {
         } else if (rol === ROLES.PROFESOR) {
           // El profesor solo necesita sus asignaciones y sus estudiantes
           listaAsignaciones = await leer(
-            supabase.from("asignaciones").select("*").eq("profesor_id", usuarioId)
+            supabase.from("asignaciones").select("id, estudiante_id, profesor_id").eq("profesor_id", usuarioId)
           );
           perfiles = await perfilesPorIds(
             supabase,
             listaAsignaciones.map((a) => a.estudiante_id)
           );
         } else if (rol === ROLES.DIRECTOR || rol === ROLES.ADMINISTRADOR) {
-          perfiles = await leer(supabase.from("perfiles").select("*"));
-          listaAsignaciones = await leer(supabase.from("asignaciones").select("*"));
+          perfiles = await leer(supabase.from("perfiles").select(COLUMNAS_PERFIL));
+          listaAsignaciones = await leer(supabase.from("asignaciones").select("id, estudiante_id, profesor_id"));
         } else {
           setCargando(false);
           return;
